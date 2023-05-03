@@ -1,0 +1,281 @@
+-- принята с замечаниями
+
+--901
+--Вариант N 6
+
+DROP TABLE to_owns;
+DROP TABLE routine;
+DROP TABLE owners;
+DROP TABLE homes;
+DROP TABLE streets;
+
+--Л. р. №1. Создание и заполнение отношений БД собственников квартир.
+--1. Отношение "Улицы" (поле "Название улицы").
+create table streets (
+    street varchar(100) not null constraint pk_street PRIMARY KEY
+);
+
+--2. Отношение "Дома" (поля "Номер здания", "Улица", "Номер дома"). Номер здания является уникальным полем.
+create table homes (
+    building_num numeric(6) constraint pk_building_num PRIMARY KEY,
+    str varchar(100) not null constraint fk_homes REFERENCES streets ON DELETE CASCADE,
+    HomeNum numeric(4) not null
+);
+
+--3. Отношение "Собственники" ("ФИО", "Дата рождения", "Пол").
+create table owners (
+    id numeric(6) constraint pk_id PRIMARY KEY,
+    fio varchar(100) not null,
+    born date not null,
+    gender char not null constraint ch_gender check(gender IN('ж','м'))
+);
+
+--4. Отношение "Документы" (поля "Владелец", "Тип документа", "Серия документа", "Номер документа", "Кем выдан", "Когда выдан").
+create table routine (
+    pid numeric(6) constraint fk_routine REFERENCES owners ON DELETE CASCADE,
+    type varchar(100) not null,
+    ser_pass char(4) not null,
+    num_pass char(6) not null,
+    get_pass varchar(100) not null,
+    date_pass date not null
+);
+
+--5. Отношение "Владение":
+--Содержимое поля        Тип	Длина	Дес.	Примечание
+--Владелец	           N	6	0	внешний ключ к таблице "Собственники"
+--Номер здания	     N	6	0	внешний ключ к таблице "Дома"
+--Номер квартиры	     N	4		обязательное поле
+--Доля	                 N	5	4	часть квартиры, которой он владеет (например, 1, 0.5, 0.3333 и т.д.)
+--Начало владения	     D			обязательное поле
+--Окончание владения     D			Проставляется, когда владение заканчивается. Не может быть больше текущей даты.
+
+create table to_owns (
+    owner numeric(6,0) constraint fk_owner_to_owns REFERENCES owners ON DELETE CASCADE,
+    building_numb numeric(6,0) not null constraint fk_building_numb_to_owns REFERENCES homes ON DELETE CASCADE,
+    flat_num numeric(4) not null,
+    share_num numeric(5,4),
+    st_date date not null,
+    fin_date date constraint check_FinDate CHECK (fin_date <= current_date),
+    cid numeric(4) not null constraint pk_cid PRIMARY KEY
+);
+
+--Заполнение таблиц
+
+INSERT INTO streets VALUES
+('АФАНАСЬЕВА'),
+('ГАСТЕЛЛО'),
+('СТУДЕНЧЕСКИЙ ГОРОДОК'),
+('ПЛОЩАДЬ РЕСПУБЛИКИ'),
+('500-ЛЕТИЕ ЧЕБОКСАР'),
+('М.ПАВЛОВА'),
+('ХОДЫНСКИЙ БУЛЬВАР'),
+('ВОЛОДАРСКОГО'),
+('КИРОВО'),
+('УРАЛЬСКОГО')
+;
+
+INSERT INTO homes VALUES
+(1,'АФАНАСЬЕВА', 9),
+(2,'ГАСТЕЛЛО',167),
+(3,'ХОДЫНСКИЙ БУЛЬВАР',2),
+(4,'СТУДЕНЧЕСКИЙ ГОРОДОК',67),
+(5,'ПЛОЩАДЬ РЕСПУБЛИКИ',43),
+(6,'500-ЛЕТИЕ ЧЕБОКСАР',122),
+(7,'М.ПАВЛОВА',89),
+(8,'ВОЛОДАРСКОГО',38),
+(9,'КИРОВО',29), 
+(10,'УРАЛЬСКОГО',5) --свободна
+;
+
+INSERT INTO owners VALUES
+(01,'ИВАНОВ ИВАН ИВАНОВИЧ','20/04/1975','м'),
+(02,'ИВАНОВА ИРИНА АЛЕКСАНДРОВНА','20/04/1979','ж'),
+(03,'ИВАНОВА СОНЯ МИХАЙЛОВНА','20/04/2008','ж'),
+(04,'ИВАНОВА АЛЕКСАНДРА МИХАЙЛОВНА','20/04/2008','ж'),
+(05,'ИВАНОВА АННА МИХАЙЛОВНА','20/04/2001','ж'),
+(06,'ЕФИМОВ ЕФИМ ЕФИМОВИЧ ','20/04/1950','м'),
+(07,'ВАСИЛЬЕВА ВАСИЛИСА ИГОРЕВНА','20/04/1940','ж'),
+(08,'МИХАЙЛОВ МИХАИЛ ОЛЕГОВИЧ','23/11/1951','м'),
+(09,'ЙЫЛДЫРЫМ АРИНА','20/04/1975','ж'),
+(10,'ЛЕВРЕНОВА АНАСТАСИЯ АЛЕКСАНДРОНА','20/04/1999','ж')
+;
+
+INSERT INTO routine VALUES
+(01,'ПАСПОРТ',9715,203221,'МВД','18/10/2010'),
+(02,'ПАСПОРТ',9725,203222,'МВД','18/10/2010'),
+(03,'ПАСПОРТ',9735,203223,'МВД','18/10/2010'),
+(04,'ПАСПОРТ',9745,203224,'МВД','18/10/2010'),
+(05,'ПАСПОРТ',9755,203225,'МВД','18/10/2010'),
+(06,'ПАСПОРТ',9765,203226,'МВД','18/10/2010'),
+(07,'ПАСПОРТ',9775,203227,'МВД','18/10/2010'),
+(08,'ПАСПОРТ',9785,203228,'МВД','18/10/2010'),
+(09,'ПАСПОРТ',9795,203229,'МВД','18/10/2010')
+;
+
+INSERT INTO to_owns VALUES
+(07,9,19,1,'22/11/1960','23/11/2022',007)
+;
+
+INSERT INTO to_owns(owner, building_numb,flat_num,share_num,st_date,cid) VALUES
+(01,1,62,1,'22/11/2021',000),
+(01,2,197,1,'22/11/2022',001),
+(02,3,165,0.25,'30/10/2000',002),
+(03,3,165,0.25,'30/10/2010',003),
+(04,3,165,0.3,'30/10/2010',004),
+(05,3,165,0.25,'30/10/2002',005),
+(06,4,20,1,'30/10/1970',006),
+(08,5,256,0.5,'30/10/1971',008),
+(09,6,2,0.7,'30/10/1990',009)
+;
+
+INSERT INTO to_owns(building_numb, flat_num, cid) VALUES
+(10,1,10)
+;
+
+--Л.р. №2. Выборка данных. Один из запросов надо написать двумя способами и объяснить, какой из вариантов будет работать быстрее и почему.
+--Создать упорядоченные списки:
+--•	единоличных владельцев помещений (доля которых равна 1) с указанием адреса квартиры, которой он владеет;
+select o.fio AS "ФИО", t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, owners o, homes h
+	where 
+	    t.share_num = 1
+		and
+	    t.owner = o.id
+		and 
+		t.building_numb = h.building_num
+		and
+		t.fin_date IS NULL;
+
+--+
+		
+--•	собственников с перечнем их документов (в том числе тех, у которых нет документов);
+select o.fio AS "ФИО", r.type AS "Тип документа", r.ser_pass AS "Серия паспорта", r.num_pass AS "Номер паспорта", r.get_pass AS "Кем выдан", r.date_pass AS "Дата выдачи"
+    from owners o, routine r
+	where 
+	    o.id = r.pid
+UNION
+select o.fio AS "ФИО",NULL,NULL,NULL,NULL,NULL
+    from owners o
+	where 
+	    o.id NOT IN (select pid from routine);
+
+--+
+	
+--•	квартиры, в числе собственников которых в настоящее время есть люди старше 70-ти лет;
+select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом", o.fio AS "ФИО", o.born AS "Дата рождения", extract(year from age(current_date, o.born)) AS "Возраст"
+    from owners o, to_owns t, homes h
+    where 
+	    h.building_num = t.building_numb
+		AND
+	    t.owner = o.id
+		AND
+		extract(year from age(current_date, o.born)) > 70
+		AND
+		t.fin_date IS NULL;
+
+--+
+
+--•	квартир, у которых в настоящее время нет собственников.
+--Были такие замечания: 
+-- неверно: 1) если есть бывший владелец, это не значит, что нет текущего.
+-- 2) второй запрос вообще не должен ничего выдать: дата начала владения всегда определена.
+
+select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+		t.owner IS NULL
+UNION
+(select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+		t.fin_date IS NOT NULL
+EXCEPT
+select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+		t.fin_date IS NULL);
+		
+		
+--Проверить, что общая доля владения квартирой не превышает 1 (выдать нарушения).
+select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом", sum(t.share_num) AS "Нарушение"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb  --Было замечание: не хватает проверки "текущее владение" (не закончилось)
+        AND
+		t.fin_date IS NULL
+group by t.flat_num, h.str, h.HomeNum
+having sum(t.share_num) > 1;
+
+--Полностью изменила, чтобы было различие
+--Один из запросов надо написать двумя способами и объяснить, какой из вариантов будет работать быстрее и почему.
+--•	квартир, у которых в настоящее время нет собственников.
+select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+		t.owner IS NULL            -- не может не быть владельца, это обязательное поле
+UNION
+(select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+		t.fin_date IS NOT NULL
+EXCEPT
+select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+		t.fin_date IS NULL);
+		
+--240 ms
+
+--2 способ
+
+select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+		t.owner IS NULL       -- не может не быть владельца, это обязательное поле
+UNION
+select t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+		t.flat_num NOT IN (select flat_num from to_owns where fin_date IS NULL);
+
+--161 ms
+
+-- ваши запросы выдают неверный результат.
+-- я указала дату завершения владения для ваших данных:
+update to_owns set fin_date = current_date where cid=9;
+-- запрос должен выдавать только эту строку (у остальных дата завершения не определена - текущее владение)
+-- а ваши запросы выдают по 2 строки.
+
+-- всё гораздо проще:
+select distinct t.flat_num AS "Квартира", h.str AS "Улица", h.HomeNum AS "Дом"
+    from to_owns t, homes h
+	where
+	    h.building_num = t.building_numb
+		AND
+ 	    t.fin_date IS NOT NULL
+		AND NOT EXISTS (select * from to_owns t1 
+		where t1.flat_num = t.flat_num AND t1.building_numb = t.building_numb and t1.fin_date IS NULL);
+-- можно еще через not in, тогда postgres не сможет воспользоваться индексом и будет работать дольше
+-- или через except 
+
+--Разность отношений происходит дольше, чем построчная проверка подзапроса, так как в первом случае сначала 
+(сравнение запросов после union) 
+--создаются отдельные две таблицы (состоящие еще и сами из декартово произведения), которые затем построчно "вычитаются", 
+а во втором случае производится
+--подзапрос, который уже позволяет построчно сравнить данные, то есть меньше продолжительных действий.

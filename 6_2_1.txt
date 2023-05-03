@@ -1,0 +1,44 @@
+Зефирова Анна
+Группа Б07-902
+Вариант N 6
+
+--Л. р. №1. Создание функций.
+
+--1. Функция, принимающая в качестве параметров две даты и возвращающая строку "несовершеннолетний", если между этими датами прошло менее 18-и лет и одного дня. Если вторая дата не определена, считать до текущей даты.
+create or replace function is_young(d1 date, d2 date default trunc(current_date)) 
+return  varchar2  is
+begin
+    if ((trunc(months_between(d2, d1) / 12)) > 18) or ((trunc(months_between(d2, d1) / 12)) = 18 and (trunc(d2 - add_months(d1, trunc(months_between(d2, d1) / 12) * 12 + trunc(mod(months_between(d2,d1), 12)))) >= 1)) then
+        return 'adult';
+    else
+        return 'infant';
+    end if;
+end is_young;
+
+--+
+
+--2. Функция, проверяющая правильность поля "Пол". Параметры: отчество и пол. Возвращаемое значение – пустая строка или строка "не соответствует", если отчество не соответствуют установленному полу. Основные правила: мужской пол – отчество оканчивается на 'ИЧ'; женский пол – окончание отчества 'НА'.
+--исправлено замечание: поиск в строке чувствителен к регистру, вы это не учитываете
+create or replace function ex_gender(name3 varchar, gender char) 
+return  varchar2  is
+begin
+    if ((lower(gender) = 'f' and lower(name3) like '%na') or (lower(gender) = 'm' and lower(name3) like '%ich')) then
+        return null;
+    else
+        return 'does not match';
+    end if;
+end ex_gender;
+
+--3. Функция, преобразующая значение ФИО в фамилию с инициалами (например, "Иванов Иван Сергеевич" в "Иванов И.С.").
+--исправлено замечание: функция должна учитывать, что отчество может отсутствовать
+create or replace function ch_name(fio varchar2) 
+return  varchar2  is
+begin
+    if REGEXP_LIKE(fio, '^[a-zA-Z]*[ ][a-zA-Z]*[ ][a-zA-Z]*$') =TRUE then
+      return    REGEXP_SUBSTR(fio, '\w*') ||
+                 REGEXP_SUBSTR(fio, '[[:space:]]\w', 1, 1) || '.' ||
+                  REGEXP_SUBSTR(fio, '[[:space:]]\w', 1, 2) || '.' ;
+    else
+        return '3d name doesn''t exist';
+    end if;
+end;

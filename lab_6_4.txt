@@ -1,0 +1,35 @@
+--
+--Зефирова Анна
+--901
+--Вариант N 6
+
+--Л.р. №4. Изучение операций реляционной алгебры.
+
+--1 Проекция
+select distinct building_numb, flat_num
+   from to_owns;
+
+--2 Селекция
+select * 
+  from to_owns where owner='01';
+--+
+--3 Декартово произведение
+select * 
+  from owners CROSS JOIN routine;
+
+--4 Объединение
+select * from owners
+UNION 
+select * from owners2022;
+
+--5 Разность
+select * from owners 
+    where (id, fio, born, gender) not in (select * from owners2022);
+
+--6 Пересечение
+select * from owners where (id, fio, born, gender) in (select * from owners2022);
+--+
+--7 Соединение
+select *
+from to_owns t JOIN owners o ON t.owner = o.id;
+--+

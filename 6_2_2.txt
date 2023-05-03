@@ -1,0 +1,106 @@
+-- 
+
+--1.	Процедура, выводящая на экран по номеру дома список квартир, по которым нет информации о собственниках. 
+--Алгоритм работы: найти максимальный номер квартиры и вывести все номера с 1-го, которых нет в таблице "Владение".
+create or replace FUNCTION ghost (building_numbb to_owns.flat_num%TYPE) returns setof int as $$
+declare
+max_num_flat to_owns.flat_num%TYPE;
+begin
+	if EXISTS(SELECT * FROM to_owns) = false then raise exception 'Таблица to_owns пуста'; end if;
+	if (select count(building_num) from homes where building_numbb = building_num)=1 and (select count(building_numb) from to_owns where building_numbb = building_numb)=0 then
+		raise exception 'Дом пуст';
+	else
+    select max(flat_num) INTO max_num_flat from to_owns where building_numb = building_numbb;
+    for i in 1..max_num_flat 
+    loop
+        if i not in (select flat_num from to_owns where building_numb = building_numbb and fin_date is NULL) then
+			return next i;
+        end if;        
+    end loop; 
+	return;
+	end if;
+	EXCEPTION
+	when null_value_not_allowed THEN RAISE exception 'Номер дома % не определен, проверьте таблицу to_owns', building_numbb;
+end;
+$$ LANGUAGE plpgsql;
+
+
+--2. Процедура, проставляющая дату окончания владения по дате выдачи свидетельства о смерти.\
+-- Последние исправления после замечаний:
+-- вы неверно поняли задание: процедура должна брать данные из таблицы ДОКУМЕНТЫ и, если у умершего человека
+-- есть текущее владение, ставить дату его окончания по дате смерти.
+
+create or replace FUNCTION souls (owner_type varchar, owner_ser_pass char, owner_num_pass char, owner_get_pass varchar, owner_date_pass varchar, death_date varchar) returns varchar as $$
+declare
+date_pass_1 date;
+date_change date;
+owner_was owners.id%TYPE;
+begin
+    	select to_date(death_date, 'DD.MM.YYYY') into date_change;
+		select to_date(owner_date_pass, 'DD.MM.YYYY') into date_pass_1;
+		select pid into owner_was from routine where type = upper(owner_type) and ser_pass = owner_ser_pass and num_pass = owner_num_pass and get_pass = upper(owner_get_pass) and date_pass = date_pass_1;
+		
+		if (select count(owner) from to_owns where owner = owner_was and fin_date is not null) = 
+                   (select count(owner) from to_owns where owner = owner_was) then 
+			raise exception 'Этот человек не имеет квартиры в домах, проверьте правильность данных с помощью функции ch_date';
+		end if;
+		
+		update to_owns set fin_date = date_change where owner = owner_was and fin_date is null;
+		return 'Произошел update';
+	
+	EXCEPTION
+	when datetime_field_overflow or check_violation THEN raise exception 'Неправельные параметры' using hint = 'Неправельная дата';
+end;
+$$ LANGUAGE plpgsql;
+
+--3. Процедура, проверяющая правильность проставления дат владения. Человек не может стать владельцем до своего рождения, 
+и владеть квартирой после своей смерти.
+-- Последние исправления после замечаний:
+-- вы неверно поняли задание: процедура должна брать данные из таблиц ДОКУМЕНТЫ и ВЛАДЕЛЬЦЫ и для всех проверять првавильность дат.
+-- Выдавать сообщения о нарушениях.
+
+create or replace FUNCTION ch_date(owner_type varchar default null, owner_ser_pass char default null, owner_num_pass char default null, owner_get_pass varchar default null, owner_date_pass varchar default null, date_death varchar default null) returns varchar as $$
+declare
+date_pass_1 date;
+owner_ch owners.id%TYPE;
+date_die to_owns.fin_date%TYPE;
+birth_ch owners.born%TYPE;
+curs  CURSOR  for  SELECT distinct owner FROM to_owns;  
+begin
+	if date_death is null then
+		open curs;
+		loop
+		fetch curs into owner_ch;
+		exit when not found;
+		select born into birth_ch from owners where id = owner_ch;		
+		if (select count(owner) from to_owns where owner = owner_ch and st_date <= birth_ch) > 0 then
+			raise exception 'Ошибка в дате начала владения, проверьре данные для id = %', (select fio from owners where id = owner_ch) using hint = 'Человек не может владеть квартирой до своего рождения';
+		end if;
+		end loop;
+		close curs;
+		raise notice 'Для проверки даты завершения владения введите тип документа, его данные и дату смерти, как в свидетельстве о смерти';
+		return 'st_date адекватны';
+	else 
+		select to_date(date_death, 'DD.MM.YYYY') into date_die;
+		select to_date(owner_date_pass, 'DD.MM.YYYY') into date_pass_1;
+		select pid into owner_ch from routine where type = upper(owner_type) and ser_pass = owner_ser_pass and num_pass = owner_num_pass and get_pass = upper(owner_get_pass) and date_pass = date_pass_1;
+		select born into birth_ch from owners where id = owner_ch;
+
+		if (select count(owner) from to_owns where owner = owner_ch and fin_date is null)>0 and (date_die is not null) then
+			raise exception 'Ошибка, проставьте дату завершения владения по свидетельству о смерти для id = %, используйте функцию souls', owner_ch;
+		end if;
+		
+		if (select count(owner) from to_owns where owner = owner_ch and fin_date > date_die) > 0 then
+			raise exception 'Ошибка в дате завершения владения, проверьте данные для id = %', owner_ch using hint = 'Человек не может владеть квартирой после своей смерти';
+		end if;
+		
+		if (select count(owner) from to_owns where owner = owner_ch and st_date <= birth_ch) > 0 then
+			raise exception 'Ошибка в дате начала владения, проверьре данные для id = %', owner_ch using hint = 'Человек не может владеть квартирой до своего рождения';
+		end if;
+
+		return 'Все даты адекватны';
+		end if;
+ 	EXCEPTION
+ 	when datetime_field_overflow or check_violation THEN raise exception 'Неправельные параметры' using hint = 'Неправельная дата';
+end;
+$$ LANGUAGE plpgsql;

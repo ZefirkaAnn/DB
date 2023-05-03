@@ -1,0 +1,77 @@
+--
+--Зефирова Анна
+--901
+--Вариант N 6
+
+--Л.р. №3. Работа с представлениями.
+
+--1.	Представление "Собственность" (соединение отношений "Собственники" и "Владение") 
+-- – без учета бывших собственников.
+CREATE OR REPLACE VIEW ownership(id, fio, born, gender, building_numb, flat_num, share_num, st_date)
+AS SELECT o.id, o.fio, o.born, o.gender, t.building_numb, t.flat_num, t.share_num, t.st_date
+FROM to_owns t, owners o
+    WHERE 
+        t.owner = o.id
+	AND
+        t.fin_date IS NULL;
+--+
+--SELECT * FROM ownership;
+--Обновляемые? insert невозможен, так как 2 таблицы
+-- update тоже невозможен (хоть и to_owns самая подчиненная, но её после подлежит проверке)
+--+
+--2.	Представление "Количество собственников по домам": 
+--номер здания – улица – номер дома – количество текущих собственников. 
+--Были замечания:
+-- зачем в основном запросе таблица to_owns? Вы же ничего из нее не выбираете. И обращаетесь к ней в подзапросе.
+-- проверка t.owner IS NOT NULL бессмысленная: это поле не м.б. неопределенным.
+-- запрос работает неверно: вы все-таки не учитываете, что:
+-- один и тот же человек может в разное время вступить во владение
+-- разной долей собственности (например, сначала 0.25, затем еще 0.3):
+-- это один и тот же собственник!
+
+CREATE OR REPLACE VIEW ownership_num_from_building(building_numb, street, HomeNum,num_of_owners)
+AS SELECT h.building_num, h.str, h.HomeNum, (select count(distinct t.owner) from to_owns t 
+											 group by (t.building_numb, t.fin_date) 
+											 having (t.building_numb = h.building_num and t.fin_date IS NULL)
+											) 
+FROM homes h;
+
+--update ownership_num_from_building set HomeNum = 111 where building_numb = 1;
+	
+SELECT * FROM ownership_num_from_building;
+
+-- Обновляемые? insert - нет, есть num_of_owners, которое считается, а вот update можно для HomeNum (не внешний и не внутренний ключ)
+
+-- 3.	Представление "Собственники с просроченными документами": 
+--Были замечания: 
+
+CREATE OR REPLACE VIEW ownership_with_bad_pass
+AS SELECT *
+FROM owners o
+    where 
+		extract(year from age(current_date, o.born))>=14
+		AND
+		(o.id IN (select distinct r.pid from routine r where
+		(r.type != 'ПАСПОРТ'
+		OR
+		(
+		r.type = 'ПАСПОРТ'
+		AND
+		r.date_pass = (select max(date_pass)from routine group by(pid) having pid = r.pid)
+		AND
+		(((extract(year from age(current_date, o.born))*12 + extract(month from age(current_date, o.born))) > 240 
+		AND ((extract(year from age(r.date_pass,o.born))*12 + extract(month from age(r.date_pass,o.born))) < 240))
+		OR
+		((extract(year from age(current_date, o.born))*12 + extract(month from age(current_date, o.born))) > 540 
+		 AND ((extract(year from age(r.date_pass,o.born))*12 + extract(month from age(r.date_pass,o.born))) < 540))
+		 ))))
+		 OR
+		 o.id NOT IN (select pid from routine)
+		 )
+		 ;
+
+--update ownership_with_bad_pass set gender='ж' where id = 1;
+--update ownership_with_bad_pass set fio='ж' where id = 1;
+--SELECT * FROM ownership_with_bad_pass;
+--Обновляемые? insert нет, в вычислениях используется born
+--update можно, так как fio и gender неиспользуемые поля и не ключи
